@@ -47,9 +47,7 @@ class ConnectionManager(
     private val stateChannel = Channel<State>()
     private val stateChannelList = CopyOnWriteArrayList<Channel<State>>()
 
-    private val subscriptionIdMap = HashMap<String, String>()
     private val roomsChannels = LinkedHashMap<String, Channel<Room>>()
-    private val roomMessagesChannels = LinkedHashMap<String, Channel<Message>>()
 
     fun connect() {
         if (connectJob?.isActive == true && client.state !is State.Disconnected) {
@@ -128,22 +126,13 @@ class ConnectionManager(
             dbManager.processUsersBatch(users)
         }
 
-        launch {
-            for (room in client.roomsChannel) {
-                Timber.d("Got room streamed")
-                roomsActor.send(room)
-            }
+        launch { for (room in client.roomsChannel) roomsActor.send(room) }
 
-            for (subscription in client.subscriptionsChannel) {
-                Timber.d("Got subscription streamed")
-                roomsActor.send(subscription)
-            }
+        launch { for (subscription in client.subscriptionsChannel) roomsActor.send(subscription) }
 
-            for (user in client.activeUsersChannel) {
-                userActor.send(user)
-            }
-        }
+        launch { for (user in client.activeUsersChannel) userActor.send(user) }
     }
+
 
     fun addStateChannel(channel: Channel<State>) = stateChannelList.add(channel)
 
@@ -154,29 +143,6 @@ class ConnectionManager(
     }
 
     fun removeRoomChannel(roomId: String) = roomsChannels.remove(roomId)
-
-    fun subscribeRoomMessages(roomId: String, channel: Channel<Message>) {
-        val oldSub = roomMessagesChannels.put(roomId, channel)
-        if (oldSub != null) {
-            Timber.d("Room $roomId already subscribed...")
-            return
-        }
-
-        if (client.state is State.Connected) {
-            client.subscribeRoomMessages(roomId) { _, id ->
-                Timber.d("Subscribed to $roomId: $id")
-                subscriptionIdMap[roomId] = id
-            }
-        }
-    }
-
-    fun unsubscribeRoomMessages(roomId: String) {
-        val sub = roomMessagesChannels.remove(roomId)
-        if (sub != null) {
-            val id = subscriptionIdMap.remove(roomId)
-            id?.let { client.unsubscribe(it) }
-        }
-    }
 
     private inline fun <T> createBatchActor(
         context: CoroutineContext = Dispatchers.IO,

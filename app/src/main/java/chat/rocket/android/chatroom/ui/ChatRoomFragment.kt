@@ -181,8 +181,7 @@ class ChatRoomFragment : Fragment(), ChatRoomView, EmojiKeyboardListener, EmojiR
     private var playComposeMessageButtonsAnimation = true
 
     internal var isSearchTermQueried = false
-
-    private val dismissStatus = { text_connection_status.fadeOut() }
+    private val dismissConnectionState by lazy { text_connection_status.fadeOut() }
 
     // For reveal and unreveal anim.
     private val hypotenuse by lazy {
@@ -475,12 +474,10 @@ class ChatRoomFragment : Fragment(), ChatRoomView, EmojiKeyboardListener, EmojiR
     override fun sendMessage(text: String) {
         ui {
             if (!text.isBlank()) {
-                if (text.startsWith("/")) {
-                    presenter.runCommand(text, chatRoomId)
-                } else if (text.startsWith("+")) {
-                    presenter.reactToLastMessage(text, chatRoomId)
-                } else {
-                    presenter.sendMessage(chatRoomId, text, editingMessageId)
+                when {
+                    text.startsWith("/") -> presenter.runCommand(text, chatRoomId)
+                    text.startsWith("+") -> presenter.reactToLastMessage(text, chatRoomId)
+                    else -> presenter.sendMessage(chatRoomId, text, editingMessageId)
                 }
             }
         }
@@ -640,8 +637,9 @@ class ChatRoomFragment : Fragment(), ChatRoomView, EmojiKeyboardListener, EmojiR
 
     override fun copyToClipboard(message: String) {
         ui {
-            val clipboard = it.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-            clipboard.primaryClip = ClipData.newPlainText("", message)
+            (it.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager).apply {
+                setPrimaryClip(ClipData.newPlainText("", message))
+            }
         }
     }
 
@@ -747,8 +745,8 @@ class ChatRoomFragment : Fragment(), ChatRoomView, EmojiKeyboardListener, EmojiR
     }
 
     private fun setReactionButtonIcon(@DrawableRes drawableId: Int) {
-        button_add_reaction_or_show_keyboard.setImageResource(drawableId)
-        button_add_reaction_or_show_keyboard.tag = drawableId
+        button_add_reaction_or_show_keyboard?.setImageResource(drawableId)
+        button_add_reaction_or_show_keyboard?.tag = drawableId
     }
 
     override fun showFileSelection(filter: Array<String>?) {
@@ -774,10 +772,10 @@ class ChatRoomFragment : Fragment(), ChatRoomView, EmojiKeyboardListener, EmojiR
     override fun showConnectionState(state: State) {
         ui {
             text_connection_status.fadeIn()
-            handler.removeCallbacks(dismissStatus)
+            handler.removeCallbacks { dismissConnectionState }
             text_connection_status.text = when (state) {
                 is State.Connected -> {
-                    handler.postDelayed(dismissStatus, 2000)
+                    handler.postDelayed({ dismissConnectionState }, 2000)
                     getString(R.string.status_connected)
                 }
                 is State.Disconnected -> getString(R.string.status_disconnected)
@@ -930,9 +928,11 @@ class ChatRoomFragment : Fragment(), ChatRoomView, EmojiKeyboardListener, EmojiR
             }
 
             button_send.setOnClickListener {
-                var textMessage = citation ?: ""
-                textMessage += text_message.textContent
-                sendMessage(textMessage)
+                text_message.textContent.run {
+                    if(this.isNotBlank()) {
+                        sendMessage((citation ?: "") + this)
+                    }
+                }
             }
 
             button_show_attachment_options.setOnClickListener {
@@ -1176,15 +1176,15 @@ class ChatRoomFragment : Fragment(), ChatRoomView, EmojiKeyboardListener, EmojiR
         }
     }
 
-    override fun unscheduleDrawable(who: Drawable?, what: Runnable?) {
+    override fun unscheduleDrawable(who: Drawable, what: Runnable) {
         text_message?.removeCallbacks(what)
     }
 
-    override fun invalidateDrawable(who: Drawable?) {
+    override fun invalidateDrawable(who: Drawable) {
         text_message?.invalidate()
     }
 
-    override fun scheduleDrawable(who: Drawable?, what: Runnable?, `when`: Long) {
+    override fun scheduleDrawable(who: Drawable, what: Runnable, `when`: Long) {
         text_message?.postDelayed(what, `when`)
     }
 

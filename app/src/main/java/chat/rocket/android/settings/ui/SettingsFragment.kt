@@ -11,6 +11,7 @@ import android.widget.EditText
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.net.toUri
+import androidx.core.view.isInvisible
 import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
 import chat.rocket.android.BuildConfig
@@ -24,10 +25,8 @@ import chat.rocket.android.settings.presentation.SettingsPresenter
 import chat.rocket.android.settings.presentation.SettingsView
 import chat.rocket.android.util.extensions.inflate
 import chat.rocket.android.util.extensions.showToast
-import chat.rocket.android.util.invalidateFirebaseToken
 import dagger.android.support.AndroidSupportInjection
 import kotlinx.android.synthetic.main.app_bar.*
-import kotlinx.android.synthetic.main.dialog_delete_account.*
 import kotlinx.android.synthetic.main.fragment_settings.*
 import timber.log.Timber
 import javax.inject.Inject
@@ -51,6 +50,7 @@ class SettingsFragment : Fragment(), SettingsView, AppLanguageView {
         "hi,IN",
         "it",
         "ja",
+        "pl",
         "pt,BR",
         "pt,PT",
         "ru,RU",
@@ -109,19 +109,33 @@ class SettingsFragment : Fragment(), SettingsView, AppLanguageView {
         text_delete_account.isVisible = isDeleteAccountEnabled
     }
 
+    override fun openShareApp(link: String?) {
+        with(Intent(Intent.ACTION_SEND)) {
+            type = "text/plain"
+            putExtra(Intent.EXTRA_SUBJECT, context?.getString(R.string.msg_check_this_out))
+            putExtra(Intent.EXTRA_TEXT, link ?: getString(R.string.play_store_link))
+            context?.startActivity(
+                Intent.createChooser(
+                    this,
+                    getString(R.string.msg_share_using)
+                )
+            )
+        }
+    }
+
     override fun updateLanguage(language: String, country: String?) {
         presenter.saveLocale(language, country)
         presenter.recreateActivity()
     }
 
-    override fun invalidateToken(token: String) = invalidateFirebaseToken(token)
-
     override fun showLoading() {
-        view_loading.isVisible = true
+        view_loading?.isVisible = true
+        group_settings?.isInvisible = true
     }
 
     override fun hideLoading() {
-        view_loading.isVisible = false
+        view_loading?.isVisible = false
+        group_settings?.isInvisible = false
     }
 
     override fun showMessage(resId: Int) {
@@ -234,7 +248,7 @@ class SettingsFragment : Fragment(), SettingsView, AppLanguageView {
     private fun shareApp() {
         // We can't know for sure at this point that the invitation was sent successfully since they will now be outside our app
         analyticsManager.logInviteSent(InviteType.ViaApp)
-        presenter.shareViaApp(context)
+        presenter.prepareShareApp()
     }
 
     private fun showLogoutDialog() {

@@ -4,6 +4,7 @@ import DrawableHelper
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
+import android.text.method.ScrollingMovementMethod
 import android.view.View
 import androidx.appcompat.app.AppCompatActivity
 import androidx.fragment.app.Fragment
@@ -24,9 +25,9 @@ fun Context.chatRoomIntent(
     chatRoomId: String,
     chatRoomName: String,
     chatRoomType: String,
-    isReadOnly: Boolean,
+    isReadOnly: Boolean?,
     chatRoomLastSeen: Long,
-    isSubscribed: Boolean = true,
+    isSubscribed: Boolean? = true,
     isCreator: Boolean = false,
     isFavorite: Boolean = false,
     chatRoomMessage: String? = null
@@ -143,6 +144,7 @@ class ChatRoomActivity : AppCompatActivity(), HasSupportFragmentInjector {
             text_toolbar_title,
             DrawableHelper.getDrawableFromId(R.drawable.ic_chatroom_toolbar_expand_more_20dp, this)
         )
+        text_toolbar_title.movementMethod = ScrollingMovementMethod()
         text_toolbar_title.setOnClickListener { listener(it) }
     }
 

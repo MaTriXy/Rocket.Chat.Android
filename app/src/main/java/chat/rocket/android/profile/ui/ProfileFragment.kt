@@ -35,7 +35,6 @@ import chat.rocket.android.util.extensions.inflate
 import chat.rocket.android.util.extensions.showToast
 import chat.rocket.android.util.extensions.textContent
 import chat.rocket.android.util.extensions.ui
-import chat.rocket.android.util.invalidateFirebaseToken
 import chat.rocket.common.model.UserStatus
 import chat.rocket.common.model.userStatusOf
 import com.facebook.drawee.backends.pipeline.Fresco
@@ -46,8 +45,6 @@ import io.reactivex.rxkotlin.Observables
 import kotlinx.android.synthetic.main.app_bar.*
 import kotlinx.android.synthetic.main.avatar_profile.*
 import kotlinx.android.synthetic.main.fragment_profile.*
-import kotlinx.android.synthetic.main.fragment_profile.view_dim
-import kotlinx.android.synthetic.main.fragment_profile.view_loading
 import kotlinx.android.synthetic.main.update_avatar_options.*
 import javax.inject.Inject
 
@@ -146,14 +143,19 @@ class ProfileFragment : Fragment(), ProfileView, ActionMode.Callback {
 
     override fun reloadUserAvatar(avatarUrl: String) {
         Fresco.getImagePipeline().evictFromCache(avatarUrl.toUri())
-        image_avatar.setImageURI(avatarUrl)
+        image_avatar?.setImageURI(avatarUrl)
     }
 
-    override fun showProfileUpdateSuccessfullyMessage() {
+    override fun onProfileUpdatedSuccessfully(
+        updatedEmail: String,
+        updatedName: String,
+        updatedUserName: String
+    ) {
+        currentEmail = updatedEmail
+        currentName = updatedName
+        currentUsername = updatedUserName
         showMessage(getString(R.string.msg_profile_updated_successfully))
     }
-
-    override fun invalidateToken(token: String) = invalidateFirebaseToken(token)
 
     override fun showLoading() {
         enableUserInput(false)
@@ -190,22 +192,22 @@ class ProfileFragment : Fragment(), ProfileView, ActionMode.Callback {
     override fun onActionItemClicked(mode: ActionMode, menuItem: MenuItem): Boolean {
         return when (menuItem.itemId) {
             R.id.action_update_profile -> {
-                presenter.updateUserProfile(
-                    text_email.textContent,
-                    text_name.textContent,
-                    text_username.textContent
-                )
+                updateProfile()
                 mode.finish()
                 true
             }
-            else -> {
-                false
-            }
+            else -> false
         }
     }
 
     override fun onDestroyActionMode(mode: ActionMode) {
         actionMode = null
+        if (text_email.textContent != currentEmail
+            || text_username.textContent != currentUsername
+            || text_name.textContent != currentName
+        ) {
+            showChangesNotSavedDialog()
+        }
     }
 
     private fun setupToolbar() {
@@ -287,8 +289,8 @@ class ProfileFragment : Fragment(), ProfileView, ActionMode.Callback {
             text_email.asObservable()
         ) { text_name, text_username, text_email ->
             return@combineLatest (text_name.toString() != currentName ||
-                text_username.toString() != currentUsername ||
-                text_email.toString() != currentEmail)
+                    text_username.toString() != currentUsername ||
+                    text_email.toString() != currentEmail)
         }.subscribe { isValid ->
             activity?.invalidateOptionsMenu()
             if (isValid) {
@@ -374,5 +376,31 @@ class ProfileFragment : Fragment(), ProfileView, ActionMode.Callback {
                 return
             }
         }
+    }
+
+    private fun showChangesNotSavedDialog() {
+        context?.let {
+            val builder = AlertDialog.Builder(it)
+            builder.setMessage(R.string.msg_changes_not_saved)
+                .setPositiveButton(R.string.msg_save) { _, _ ->
+                    updateProfile()
+                }
+                .setNegativeButton(android.R.string.cancel) { _, _ ->
+                    text_email.setText(currentEmail)
+                    text_username.setText(currentUsername)
+                    text_name.setText(currentName)
+                }
+                .create()
+                .show()
+        }
+
+    }
+
+    private fun updateProfile() {
+        presenter.updateUserProfile(
+            text_email.textContent,
+            text_name.textContent,
+            text_username.textContent
+        )
     }
 }
